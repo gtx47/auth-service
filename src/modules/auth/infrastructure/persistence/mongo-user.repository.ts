@@ -17,6 +17,11 @@ export class MongoUserRepository implements UserRepositoryPort {
     return doc ? this.toDomain(doc) : null;
   }
 
+  async findAll(): Promise<User[]> {
+    const docs = await this.userModel.find().exec();
+    return docs.map((d) => this.toDomain(d));
+  }
+
   async save(user: User): Promise<User> {
     const created = await this.userModel.create({
       name: user.name,

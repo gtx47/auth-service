@@ -2,9 +2,15 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
 } from '@nestjs/common';
-import { HASHER, USER_REPOSITORY } from '../../../auth.tokens';
+import {
+  EVENT_PUBLISHER,
+  HASHER,
+  USER_REPOSITORY,
+} from '../../../auth.tokens';
 import { PublicUser, User } from '../../../domain/entities/user.entity';
+import { EventPublisherPort } from '../../../domain/ports/event-publisher.port';
 import { HasherPort } from '../../../domain/ports/hasher.port';
 import { UserRepositoryPort } from '../../../domain/ports/user.repository.port';
 
@@ -16,9 +22,12 @@ export interface RegisterUserCommand {
 
 @Injectable()
 export class RegisterUserUseCase {
+  private readonly logger = new Logger('RegisterUserUseCase');
+
   constructor(
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepositoryPort,
     @Inject(HASHER) private readonly hasher: HasherPort,
+    @Inject(EVENT_PUBLISHER) private readonly eventPublisher: EventPublisherPort,
   ) {}
 
   async execute(command: RegisterUserCommand): Promise<PublicUser> {
@@ -43,6 +52,24 @@ export class RegisterUserUseCase {
     }
 
     const saved = await this.userRepository.save(user);
-    return saved.toPublicJSON();
+    const publicUser = saved.toPublicJSON();
+
+    try {
+      await this.eventPublisher.publish({
+        type: 'user.registered',
+        payload: {
+          id: publicUser.id,
+          name: publicUser.name,
+          email: publicUser.email,
+          role: publicUser.role,
+        },
+      });
+    } catch (err) {
+      this.logger.warn(
+        `no se pudo publicar user.registered: ${(err as Error).message}`,
+      );
+    }
+
+    return publicUser;
   }
 }

@@ -10,10 +10,12 @@ import {
 import { LoginUserUseCase } from '../../application/use-cases/login-user/login-user.use-case';
 import { PromoteUserUseCase } from '../../application/use-cases/promote-user/promote-user.use-case';
 import { RegisterUserUseCase } from '../../application/use-cases/register-user/register-user.use-case';
+import { ResyncUsersUseCase } from '../../application/use-cases/resync-users/resync-users.use-case';
 import { VerifyTokenUseCase } from '../../application/use-cases/verify-token/verify-token.use-case';
 import { LoginUserDto } from './dtos/login-user.dto';
 import { PromoteUserDto } from './dtos/promote-user.dto';
 import { RegisterUserDto } from './dtos/register-user.dto';
+import { ResyncUsersDto } from './dtos/resync-users.dto';
 import { VerifyTokenDto } from './dtos/verify-token.dto';
 
 @Controller()
@@ -23,6 +25,7 @@ export class AuthController {
     private readonly loginUser: LoginUserUseCase,
     private readonly verifyToken: VerifyTokenUseCase,
     private readonly promoteUser: PromoteUserUseCase,
+    private readonly resyncUsers: ResyncUsersUseCase,
   ) {}
 
   @Get('health')
@@ -57,5 +60,11 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async promote(@Body() dto: PromoteUserDto) {
     return this.promoteUser.execute(dto);
+  }
+
+  @Post('admin/resync-users')
+  @HttpCode(HttpStatus.OK)
+  async resync(@Body() dto: ResyncUsersDto) {
+    return this.resyncUsers.execute(dto);
   }
 }

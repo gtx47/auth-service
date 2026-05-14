@@ -5,13 +5,16 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { LoginUserUseCase } from './application/use-cases/login-user/login-user.use-case';
 import { PromoteUserUseCase } from './application/use-cases/promote-user/promote-user.use-case';
 import { RegisterUserUseCase } from './application/use-cases/register-user/register-user.use-case';
+import { ResyncUsersUseCase } from './application/use-cases/resync-users/resync-users.use-case';
 import { VerifyTokenUseCase } from './application/use-cases/verify-token/verify-token.use-case';
 import {
   ADMIN_PROMOTE_SECRET,
+  EVENT_PUBLISHER,
   HASHER,
   TOKEN_SERVICE,
   USER_REPOSITORY,
 } from './auth.tokens';
+import { RabbitMQEventPublisher } from './infrastructure/messaging/rabbitmq-event-publisher';
 import { MongoUserRepository } from './infrastructure/persistence/mongo-user.repository';
 import { USER_MODEL_NAME, UserSchema } from './infrastructure/persistence/user.schema';
 import { BcryptHasherService } from './infrastructure/services/bcrypt-hasher.service';
@@ -36,9 +39,11 @@ import { AuthController } from './interfaces/http/auth.controller';
     LoginUserUseCase,
     VerifyTokenUseCase,
     PromoteUserUseCase,
+    ResyncUsersUseCase,
     { provide: USER_REPOSITORY, useClass: MongoUserRepository },
     { provide: HASHER, useClass: BcryptHasherService },
     { provide: TOKEN_SERVICE, useClass: JwtTokenService },
+    { provide: EVENT_PUBLISHER, useClass: RabbitMQEventPublisher },
     {
       provide: ADMIN_PROMOTE_SECRET,
       inject: [ConfigService],
