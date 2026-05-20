@@ -3,15 +3,15 @@ import {
   Inject,
   Injectable,
   InternalServerErrorException,
-  Logger,
 } from '@nestjs/common';
 import {
   ADMIN_PROMOTE_SECRET,
-  EVENT_PUBLISHER,
+  OUTBOX_REPOSITORY,
   USER_REPOSITORY,
 } from '../../../auth.tokens';
+import { OutboxEvent } from '../../../domain/entities/outbox-event.entity';
+import { OutboxRepositoryPort } from '../../../domain/ports/outbox.repository.port';
 import { PublicUser } from '../../../domain/entities/user.entity';
-import { EventPublisherPort } from '../../../domain/ports/event-publisher.port';
 import { UserRepositoryPort } from '../../../domain/ports/user.repository.port';
 
 export interface PromoteUserCommand {
@@ -21,21 +21,17 @@ export interface PromoteUserCommand {
 
 @Injectable()
 export class PromoteUserUseCase {
-  private readonly logger = new Logger('PromoteUserUseCase');
-
   constructor(
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepositoryPort,
     @Inject(ADMIN_PROMOTE_SECRET) private readonly adminSecret: string,
-    @Inject(EVENT_PUBLISHER) private readonly eventPublisher: EventPublisherPort,
+    @Inject(OUTBOX_REPOSITORY) private readonly outboxRepository: OutboxRepositoryPort,
   ) {}
 
   async execute(command: PromoteUserCommand): Promise<PublicUser> {
     const { email, secret } = command;
 
     if (!this.adminSecret) {
-      throw new InternalServerErrorException(
-        'ADMIN_PROMOTE_SECRET no configurado',
-      );
+      throw new InternalServerErrorException('ADMIN_PROMOTE_SECRET no configurado');
     }
 
     if (secret !== this.adminSecret) {
@@ -48,14 +44,11 @@ export class PromoteUserUseCase {
       throw new BadRequestException('Usuario no encontrado');
     }
 
-    const updated = await this.userRepository.updateRole(
-      normalizedEmail,
-      'admin',
-    );
+    const updated = await this.userRepository.updateRole(normalizedEmail, 'admin');
     const publicUser = updated.toPublicJSON();
 
-    try {
-      await this.eventPublisher.publish({
+    await this.outboxRepository.save(
+      new OutboxEvent({
         type: 'user.role-changed',
         payload: {
           id: publicUser.id,
@@ -63,12 +56,8 @@ export class PromoteUserUseCase {
           email: publicUser.email,
           role: publicUser.role,
         },
-      });
-    } catch (err) {
-      this.logger.warn(
-        `no se pudo publicar user.role-changed: ${(err as Error).message}`,
-      );
-    }
+      }),
+    );
 
     return publicUser;
   }

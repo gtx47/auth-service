@@ -2,15 +2,15 @@ import {
   BadRequestException,
   Inject,
   Injectable,
-  Logger,
 } from '@nestjs/common';
 import {
-  EVENT_PUBLISHER,
   HASHER,
+  OUTBOX_REPOSITORY,
   USER_REPOSITORY,
 } from '../../../auth.tokens';
+import { OutboxEvent } from '../../../domain/entities/outbox-event.entity';
+import { OutboxRepositoryPort } from '../../../domain/ports/outbox.repository.port';
 import { PublicUser, User } from '../../../domain/entities/user.entity';
-import { EventPublisherPort } from '../../../domain/ports/event-publisher.port';
 import { HasherPort } from '../../../domain/ports/hasher.port';
 import { UserRepositoryPort } from '../../../domain/ports/user.repository.port';
 
@@ -22,12 +22,10 @@ export interface RegisterUserCommand {
 
 @Injectable()
 export class RegisterUserUseCase {
-  private readonly logger = new Logger('RegisterUserUseCase');
-
   constructor(
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepositoryPort,
     @Inject(HASHER) private readonly hasher: HasherPort,
-    @Inject(EVENT_PUBLISHER) private readonly eventPublisher: EventPublisherPort,
+    @Inject(OUTBOX_REPOSITORY) private readonly outboxRepository: OutboxRepositoryPort,
   ) {}
 
   async execute(command: RegisterUserCommand): Promise<PublicUser> {
@@ -54,8 +52,8 @@ export class RegisterUserUseCase {
     const saved = await this.userRepository.save(user);
     const publicUser = saved.toPublicJSON();
 
-    try {
-      await this.eventPublisher.publish({
+    await this.outboxRepository.save(
+      new OutboxEvent({
         type: 'user.registered',
         payload: {
           id: publicUser.id,
@@ -63,12 +61,8 @@ export class RegisterUserUseCase {
           email: publicUser.email,
           role: publicUser.role,
         },
-      });
-    } catch (err) {
-      this.logger.warn(
-        `no se pudo publicar user.registered: ${(err as Error).message}`,
-      );
-    }
+      }),
+    );
 
     return publicUser;
   }
